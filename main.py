@@ -18,7 +18,7 @@ from telegram.ext import (
 
 
 API_URL = "https://api.quotable.io"
-DEFAULT_STATE, CHOOSING_COMMAND, TYPING_AUTHOR  = range(3)
+TYPING_TAG, TYPING_AUTHOR  = range(2)
 COMMANDS = [
     'help'
     'random',
@@ -113,6 +113,9 @@ async def typing_author(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def typing_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return ConversationHandler.END
+
 # If none of the above were provided
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I don't recognize this command.")
@@ -143,11 +146,11 @@ def get_random_quote_by_author(author: str) -> str:
     """Returns a random quote by a specific author."""
     author_format = author.capitalize().replace(" ", "-").replace(".", "")
     response = requests.get(API_URL + f"/quotes/random?author={author_format}")
-    if len(response.json()) > 0:  
+    try:
         quote = '"' + response.json()[0]["content"] + '"'
         author_source = response.json()[0]["author"]
         return f"{quote}\n\n- {author_source}"
-    else:
+    except:
         return "I'm sorry, no quotes by this author were found."
 
 
@@ -162,6 +165,7 @@ def main() -> None:
     help_handler = CommandHandler('help', help)
     cancel_handler = CommandHandler('cancel', cancel)
     author_handler = MessageHandler(filters.TEXT, typing_author)
+    tag_handler = MessageHandler(filters.TEXT, typing_tag)
     unknown_handler = MessageHandler(filters.ALL, unknown)
     menu_buttons_handler = CallbackQueryHandler(menu_buttons)
     
