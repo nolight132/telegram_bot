@@ -46,14 +46,24 @@ logging.basicConfig(
 logging.getLogger('httpx').setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
+
+def print_received_message(message: str):
+    logger.info(f"Received a message: {message}")
+
+
+def print_sent_message(message: str):
+    logger.info(f"Sent a message: {message}")
+
+
 # COMMANDS
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE, query=None):
     """Executes on /start."""
-    print(f'User {update.effective_chat.effective_name} just used a /start command.')
+    logger.info(f"User {update.effective_chat.first_name} used /start command")
+    message = "I am a bot, whose sole purpose is to send you quotes.\n\nAt the moment, only these commands are supported:" 
     if query:
-        await query.edit_message_text('I am a bot, whose sole purpose is to send you quotes.\n\nAt the moment, only these commands are supported:', reply_markup=COMMANDS_KEYBOARD_MARKUP)
+        await query.edit_message_text(text=message, reply_markup=COMMANDS_KEYBOARD_MARKUP)
     else:
-       await update.message.reply_text('I am a bot, whose sole purpose is to send you quotes.\n\nAt the moment, only these commands are supported:', reply_markup=COMMANDS_KEYBOARD_MARKUP)
+       await update.message.reply_text(text=message, reply_markup=COMMANDS_KEYBOARD_MARKUP)
 
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE, query=None):
@@ -108,13 +118,10 @@ async def random_by_author(update: Update, context: ContextTypes.DEFAULT_TYPE, a
 
 async def typing_author(update: Update, context: ContextTypes.DEFAULT_TYPE):
     author = update.message.text
-    quote = get_random_quote_by_author(author)
+    quote = await get_random_quote_by_author(update, context, author)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=quote)
     return ConversationHandler.END
 
-
-async def typing_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    return ConversationHandler.END
 
 # If none of the above were provided
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -142,15 +149,23 @@ def get_random_quote() -> str:
     return f"{quote}\n\n- {author}"
 
 
-def get_random_quote_by_author(author: str) -> str:
+async def get_random_quote_by_author(update:Update, context:ContextTypes.DEFAULT_TYPE, author: str) -> str:
     """Returns a random quote by a specific author."""
     author_format = author.capitalize().replace(" ", "-").replace(".", "")
-    response = requests.get(API_URL + f"/quotes/random?author={author_format}")
+    quote_response = requests.get(API_URL + f"/quotes/random?author={author_format}")
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Finding similar authors...")
     try:
-        quote = '"' + response.json()[0]["content"] + '"'
-        author_source = response.json()[0]["author"]
+        quote = '"' + quote_response.json()[0]["content"] + '"'
+        author_source = quote_response.json()[0]["author"]
         return f"{quote}\n\n- {author_source}"
     except:
+        authors = []
+        for i in range(1,requests.get(API_URL + "/authors?limit=150").json()["totalPages"] + 1):
+            authors_response = requests.get(API_URL + f"/authors?page={i}&limit=150&sortBy=name")
+            for author in authors_response.json()["results"]:
+                authors.append(author["name"])
+        print(authors)
+    finally:
         return "I'm sorry, no quotes by this author were found."
 
 
