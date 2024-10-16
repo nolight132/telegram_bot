@@ -15,6 +15,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ConversationHandler
 )
+from apptoken import TOKEN
 
 
 API_URL = "https://johndturn-quotableapiproxy.web.val.run/"
@@ -196,7 +197,7 @@ def get_author(response):
 
 def main() -> None:
     """Start the bot."""
-    application = ApplicationBuilder().token('6973604569:AAH2NChCYageGr2sbm0mTfeKResrn5ePVxY').build()
+    application = ApplicationBuilder().token(TOKEN).build()
 
     start_handler = CommandHandler('start', start)
     menu_handler = CommandHandler('menu', menu)
