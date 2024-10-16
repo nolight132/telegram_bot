@@ -17,7 +17,7 @@ from telegram.ext import (
 )
 
 
-API_URL = "https://api.quotable.io"
+API_URL = "https://johndturn-quotableapiproxy.web.val.run/"
 TYPING_TAG, TYPING_AUTHOR  = range(2)
 COMMANDS = [
     'help'
@@ -110,18 +110,21 @@ async def random(update: Update, context: ContextTypes.DEFAULT_TYPE, query=None)
 
 async def random_by_author(update: Update, context: ContextTypes.DEFAULT_TYPE, author=None, query=None):
     if query:
-        await query.edit_message_text(text='Please enter author\'s name:')
+        await query.edit_message_text(text='Please enter author\'s name:\n\n(/cancel to cancel)')
     else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text='Please enter author\'s name:')
+        await context.bot.send_message(chat_id=update.effective_chat.id, text='Please enter author\'s name:\n\n(/cancel to cancel)')
     return TYPING_AUTHOR
 
 
 async def typing_author(update: Update, context: ContextTypes.DEFAULT_TYPE):
     author = update.message.text
-    quote = await get_random_quote_by_author(update, context, author)
+    quote = get_random_quote_by_author(update, context, author)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=quote)
     return ConversationHandler.END
 
+
+async def typing_tag(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    return ConversationHandler.END
 
 # If none of the above were provided
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -129,9 +132,8 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Canceled.")
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="Canceled 👍")
     return ConversationHandler.END
-
 
 # LOGIC
 def get_tags(message: str) -> list:
@@ -149,24 +151,47 @@ def get_random_quote() -> str:
     return f"{quote}\n\n- {author}"
 
 
-async def get_random_quote_by_author(update:Update, context:ContextTypes.DEFAULT_TYPE, author: str) -> str:
+def get_random_quote_by_author(update:Update, context:ContextTypes.DEFAULT_TYPE, author: str) -> str:
     """Returns a random quote by a specific author."""
-    author_format = author.capitalize().replace(" ", "-").replace(".", "")
-    quote_response = requests.get(API_URL + f"/quotes/random?author={author_format}")
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="Finding similar authors...")
+    author_slug = to_slug(author)
+    response = requests.get(API_URL + f"/quotes/random?author={author_slug}")
     try:
-        quote = '"' + quote_response.json()[0]["content"] + '"'
-        author_source = quote_response.json()[0]["author"]
+        quote = '"' + get_quote(response) + '"'
+        author_source = get_author(response)
         return f"{quote}\n\n- {author_source}"
     except:
-        authors = []
-        for i in range(1,requests.get(API_URL + "/authors?limit=150").json()["totalPages"] + 1):
-            authors_response = requests.get(API_URL + f"/authors?page={i}&limit=150&sortBy=name")
-            for author in authors_response.json()["results"]:
-                authors.append(author["name"])
-        print(authors)
-    finally:
-        return "I'm sorry, no quotes by this author were found."
+        try:
+            response = requests.get(API_URL + f"/quotes/random?author='{autocorrect_author(author)}'")
+            quote = '"' + get_quote(response) + '"'
+            author_source = get_author(response)
+            return f"{quote}\n\n- {author_source}"
+        except:
+            return "I'm sorry, no quotes by this author were found."
+
+
+def to_slug(author_origin):
+    print(author_origin.lower().replace(" ", "-").replace(".", ""))
+    return author_origin.lower().replace(" ", "-").replace(".", "")
+
+
+def autocorrect_author(author_origin):
+    authors = []
+    for i in range(1,requests.get(API_URL + "/authors?limit=150").json()["totalPages"] + 1):
+        authors_list_response = requests.get(API_URL + f"/authors?page={i}&limit=150&sortBy=name")
+        for author in authors_list_response.json()["results"]:
+            authors.append(author["name"])
+    for author_name in authors:
+        if author_origin.lower() in author_name.lower(): 
+            print(author_name)
+            return author_name
+
+
+def get_quote(response):
+    return response.json()[0]["content"]
+
+
+def get_author(response):
+    return response.json()[0]["author"]
 
 
 def main() -> None:
